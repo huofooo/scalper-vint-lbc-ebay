@@ -1,128 +1,104 @@
-import time
 import requests
 from bs4 import BeautifulSoup
+import time
+import telegram
 
-# Tes infos Telegram
-TOKEN = "8182847473:AAFiNbnATsBMHWpxhDC4XMqAhElkeIkqkaw"
-CHAT_ID = "-1002527933128"
-
-# URLs à scraper
-URLS = {
-    "Vinted": "https://www.vinted.fr/catalog?search_text=Steelbook%204k&time=1747614181&currency=EUR&order=newest_first&disabled_personalization=true&page=1",
-    "Leboncoin": "https://www.leboncoin.fr/recherche?text=steelbook%204k&sort=time&order=desc",
-    "eBay": "https://www.ebay.fr/sch/i.html?_nkw=steelbook+4k&_sacat=0&_sop=10"
+# --- Tes liens de recherche ---
+urls = {
+    "vinted": "https://www.vinted.fr/catalog?search_text=Steelbook%204k&time=1747614181&currency=EUR&order=newest_first&disabled_personalization=true&page=1",
+    "leboncoin": "https://www.leboncoin.fr/recherche?text=steelbook%204k&sort=time&order=desc",
+    "ebay": "https://www.ebay.fr/sch/i.html?_nkw=steelbook+4k&_sacat=0&_sop=10"
 }
 
-# Stockage des annonces déjà vues pour éviter les doublons
-seen_annonces = set()
+# --- Ton token Telegram et chat_id ---
+TELEGRAM_TOKEN = "8182847473:AAFiNbnATsBMHWpxhDC4XMqAhElkeIkqkaw"
+CHAT_ID = "-1002527933128"
+
+bot = telegram.Bot(token=TELEGRAM_TOKEN)
+
+# --- Mémoire des annonces déjà envoyées ---
+seen = set()
 
 def send_telegram_message(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": text, "disable_web_page_preview": True}
     try:
-        resp = requests.post(url, data=data)
-        if resp.status_code == 200:
-            print("Message Telegram envoyé.")
-        else:
-            print(f"Erreur Telegram: {resp.status_code} {resp.text}")
+        bot.send_message(chat_id=CHAT_ID, text=text, parse_mode='HTML')
+        print("Message envoyé :", text)
     except Exception as e:
-        print(f"Erreur envoi Telegram: {e}")
+        print("Erreur envoi Telegram :", e)
 
-def scrape_vinted():
-    print("Scraping Vinted...")
-    annonces = []
+def extract_vinted(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    results = []
+    # Ici on cherche les annonces par leur titre, lien et prix
+    items = soup.find_all('div', {'class': 'feed-grid__item'})  # À vérifier selon la page
+    for item in items:
+        title_tag = item.find('h3')
+        price_tag = item.find('div', {'class': 'feed-price'})
+        link_tag = item.find('a', href=True)
+        if title_tag and price_tag and link_tag:
+            title = title_tag.get_text(strip=True)
+            price = price_tag.get_text(strip=True)
+            link = "https://www.vinted.fr" + link_tag['href']
+            results.append({'title': title, 'price': price, 'link': link})
+    return results
+
+def extract_leboncoin(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    results = []
+    ads = soup.find_all('li', {'data-qa-id': 'aditem_container'})
+    for ad in ads:
+        title_tag = ad.find('p', {'data-qa-id': 'aditem_title'})
+        price_tag = ad.find('span', {'data-qa-id': 'aditem_price'})
+        link_tag = ad.find('a', href=True)
+        if title_tag and price_tag and link_tag:
+            title = title_tag.get_text(strip=True)
+            price = price_tag.get_text(strip=True)
+            link = "https://www.leboncoin.fr" + link_tag['href']
+            results.append({'title': title, 'price': price, 'link': link})
+    return results
+
+def extract_ebay(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    results = []
+    items = soup.find_all('li', {'class': 's-item'})
+    for item in items:
+        title_tag = item.find('h3', {'class': 's-item__title'})
+        price_tag = item.find('span', {'class': 's-item__price'})
+        link_tag = item.find('a', href=True)
+        if title_tag and price_tag and link_tag:
+            title = title_tag.get_text(strip=True)
+            price = price_tag.get_text(strip=True)
+            link = link_tag['href']
+            results.append({'title': title, 'price': price, 'link': link})
+    return results
+
+def check_site(name, url, extractor):
+    print(f"\n--- Vérification de {name} ---")
     try:
-        resp = requests.get(URLS["Vinted"], headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(resp.text, "html.parser")
-        items = soup.select("div.feed-grid__item")  # sélecteur approximatif, à ajuster
-
-        for item in items:
-            title_tag = item.select_one("div.feed-grid__item-info-title")
-            price_tag = item.select_one("div.feed-grid__item-info-price")
-            link_tag = item.select_one("a")
-
-            if title_tag and price_tag and link_tag:
-                title = title_tag.get_text(strip=True)
-                price = price_tag.get_text(strip=True)
-                link = "https://www.vinted.fr" + link_tag.get("href")
-
-                key = f"Vinted-{link}"
-                if key not in seen_annonces:
-                    annonces.append((title, price, link))
-                    seen_annonces.add(key)
+        response = requests.get(url)
+        print("Extrait HTML :")
+        print(response.text[:500])  # On affiche les 500 premiers caractères
+        annonces = extractor(response.text)
+        print(f"{len(annonces)} annonces trouvées")
+        new_count = 0
+        for annonce in annonces:
+            unique_id = annonce['link']
+            if unique_id not in seen:
+                message = f"<b>{name.capitalize()}</b>\n{annonce['title']}\nPrix : {annonce['price']}\nLien : {annonce['link']}"
+                send_telegram_message(message)
+                seen.add(unique_id)
+                new_count += 1
+        print(f"{new_count} nouvelles annonces envoyées sur Telegram")
     except Exception as e:
-        print(f"Erreur scraping Vinted: {e}")
+        print(f"Erreur sur {name} :", e)
 
-    return annonces
+def main():
+    while True:
+        check_site("vinted", urls["vinted"], extract_vinted)
+        check_site("leboncoin", urls["leboncoin"], extract_leboncoin)
+        check_site("ebay", urls["ebay"], extract_ebay)
+        print("\nPause 60 secondes...")
+        time.sleep(60)
 
-def scrape_leboncoin():
-    print("Scraping Leboncoin...")
-    annonces = []
-    try:
-        resp = requests.get(URLS["Leboncoin"], headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(resp.text, "html.parser")
-        items = soup.select("li._1fmiA")  # sélecteur approximatif, à ajuster
-
-        for item in items:
-            title_tag = item.select_one("h3._2tubl")
-            price_tag = item.select_one("h4._1F5u3")
-            link_tag = item.select_one("a")
-
-            if title_tag and price_tag and link_tag:
-                title = title_tag.get_text(strip=True)
-                price = price_tag.get_text(strip=True)
-                link = "https://www.leboncoin.fr" + link_tag.get("href")
-
-                key = f"Leboncoin-{link}"
-                if key not in seen_annonces:
-                    annonces.append((title, price, link))
-                    seen_annonces.add(key)
-    except Exception as e:
-        print(f"Erreur scraping Leboncoin: {e}")
-
-    return annonces
-
-def scrape_ebay():
-    print("Scraping eBay...")
-    annonces = []
-    try:
-        resp = requests.get(URLS["eBay"], headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(resp.text, "html.parser")
-        items = soup.select("li.s-item")  # sélecteur approximatif, à ajuster
-
-        for item in items:
-            title_tag = item.select_one("h3.s-item__title")
-            price_tag = item.select_one("span.s-item__price")
-            link_tag = item.select_one("a.s-item__link")
-
-            if title_tag and price_tag and link_tag:
-                title = title_tag.get_text(strip=True)
-                price = price_tag.get_text(strip=True)
-                link = link_tag.get("href")
-
-                key = f"eBay-{link}"
-                if key not in seen_annonces:
-                    annonces.append((title, price, link))
-                    seen_annonces.add(key)
-    except Exception as e:
-        print(f"Erreur scraping eBay: {e}")
-
-    return annonces
-
-print("=== SCALPER MULTI-SITES DÉMARRÉ ===")
-
-while True:
-    all_annonces = []
-
-    all_annonces += scrape_vinted()
-    all_annonces += scrape_leboncoin()
-    all_annonces += scrape_ebay()
-
-    print(f"{len(all_annonces)} nouvelles annonces détectées.")
-
-    for title, price, link in all_annonces:
-        message = f"{title}\nPrix: {price}\n{link}"
-        send_telegram_message(message)
-
-    print("Attente 60 secondes...\n")
-    time.sleep(60)
+if __name__ == "__main__":
+    main()
