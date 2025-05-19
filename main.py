@@ -8,8 +8,8 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 seen_links = set()
 
 def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message}
+    url = f"https://api.telegram.org/bot{8182847473:AAFiNbnATsBMHWpxhDC4XMqAhElkeIkqkaw}/sendMessage"
+    data = {"-1002527933128": CHAT_ID, "text": message}
     try:
         requests.post(url, data=data)
     except Exception as e:
