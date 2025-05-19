@@ -13,7 +13,7 @@ bot = Bot(token=TOKEN)
 # URLs à scraper
 URLS = {
     "Vinted": "https://www.vinted.fr/catalog?search_text=Steelbook%204k&time=1747650174&currency=EUR&order=newest_first&disabled_personalization=true&page=1",
-    "LeBonCoin": "https://www.leboncoin.fr/recherche?text=steelbook+4k&sort=time&order=desc&kst=k&pi=93e56493-4160-4a73-8347-c7b8ceae0af2",
+    "LeBonCoin": "https://www.leboncoin.fr/recherche?text=steelbook%204k&sort=time&order=desc",
     "eBay": "https://www.ebay.fr/sch/i.html?_nkw=steelbook+4k&_sacat=0&_sop=10"
 }
 
