@@ -1,70 +1,70 @@
 import requests
-from bs4 import BeautifulSoup
 import time
 import hashlib
 
-# === Configuration ===
-URL = "https://www.vinted.fr/catalog?search_text=steelbook%204k&search_id=23485255761&order=newest_first&time=1747726758&catalog[]=3042&disabled_personalization=true&page=1"
+# === PARAMÈTRES ===
+VINTED_URL = "https://www.vinted.fr/catalog?catalog[]=3042&order=newest_first&disabled_personalization=true&page=1"
 TELEGRAM_TOKEN = "8182847473:AAFiNbnATsBMHWpxhDC4XMqAhElkeIkqkaw"
 TELEGRAM_CHAT_ID = "-1002527933128"
+INTERVAL = 60  # secondes
 
-# === Pour éviter les doublons ===
-annonces_envoyees = set()
+# === STOCKER LES ANNONCES DÉJÀ VUES ===
+annonces_vues = set()
 
-def envoyer_telegram(message):
+def envoyer_message(texte):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {
+    payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "disable_web_page_preview": False
+        "text": texte,
+        "parse_mode": "HTML"
     }
-    response = requests.post(url, data=data)
-    if response.status_code != 200:
-        print("Erreur Telegram:", response.text)
+    requests.post(url, data=payload)
 
-def get_hash_annonce(titre, lien):
-    return hashlib.md5(f"{titre}{lien}".encode()).hexdigest()
+def hash_annonce(title, url):
+    return hashlib.md5(f"{title}-{url}".encode()).hexdigest()
 
 def verifier_vinted():
-    print("🔍 Vérification des nouvelles annonces Vinted...")
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
+    print("🔍 Vérification des annonces Vinted...")
     try:
-        response = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-        articles = soup.find_all("div", class_="feed-grid__item")
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+        response = requests.get(VINTED_URL, headers=headers)
+        if response.status_code != 200:
+            print("❌ Erreur de requête :", response.status_code)
+            return
 
-        nouveaux_detectes = 0
+        html = response.text
+        articles = html.split('data-testid="item-box"')[1:]
+        nouveaux = 0
 
         for article in articles:
-            lien_tag = article.find("a", href=True)
-            titre_tag = article.find("h3")
-            prix_tag = article.find("span", class_="text-body-2")
+            try:
+                title_start = article.index('title="') + 7
+                title_end = article.index('"', title_start)
+                title = article[title_start:title_end]
 
-            if lien_tag and titre_tag and prix_tag:
-                lien = "https://www.vinted.fr" + lien_tag["href"]
-                titre = titre_tag.text.strip()
-                prix = prix_tag.text.strip()
+                url_start = article.index('href="') + 6
+                url_end = article.index('"', url_start)
+                relative_url = article[url_start:url_end]
+                full_url = f"https://www.vinted.fr{relative_url}"
 
-                identifiant = get_hash_annonce(titre, lien)
+                identifiant = hash_annonce(title, full_url)
+                if identifiant not in annonces_vues:
+                    annonces_vues.add(identifiant)
+                    texte = f"🆕 <b>{title}</b>\n🔗 {full_url}"
+                    envoyer_message(texte)
+                    print("✅ Nouvelle annonce envoyée :", title)
+                    nouveaux += 1
+            except Exception as e:
+                print("⚠️ Erreur dans une annonce :", e)
 
-                if identifiant not in annonces_envoyees:
-                    message = f"🆕 Nouvelle annonce Vinted :\n\n{titre}\n💶 {prix}\n🔗 {lien}"
-                    envoyer_telegram(message)
-                    annonces_envoyees.add(identifiant)
-                    nouveaux_detectes += 1
-
-        if nouveaux_detectes == 0:
-            print("✅ Aucune nouvelle annonce détectée.")
-        else:
-            print(f"✅ {nouveaux_detectes} nouvelle(s) annonce(s) envoyée(s).")
-
+        if nouveaux == 0:
+            print("ℹ️ Aucune nouvelle annonce détectée.")
     except Exception as e:
-        print("❌ Erreur durant le scraping Vinted :", str(e))
+        print("❌ Erreur pendant la récupération :", e)
 
-# === Boucle infinie ===
+# === BOUCLE PRINCIPALE ===
 while True:
     verifier_vinted()
-    time.sleep(60)
+    time.sleep(INTERVAL)
