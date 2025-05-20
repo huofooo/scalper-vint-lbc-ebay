@@ -24,4 +24,4 @@ def send_telegram_message(token, chat_id, message):
 if __name__ == "__main__":
     while True:
         send_telegram_message(TOKEN, CHAT_ID, MESSAGE)
-        time.sleep(60)
+        time.sleep(240)
