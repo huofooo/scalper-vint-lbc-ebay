@@ -1,16 +1,14 @@
 import requests
+from bs4 import BeautifulSoup
 import time
 import hashlib
 
 # === CONFIGURATION ===
 TELEGRAM_TOKEN = "8182847473:AAFiNbnATsBMHWpxhDC4XMqAhElkeIkqkaw"
 TELEGRAM_CHAT_ID = "-1002527933128"
-CHECK_INTERVAL = 60  # en secondes
+CHECK_INTERVAL = 60  # secondes
+URL_VINTED = "https://www.vinted.fr/catalog?catalog[]=3042&order=newest_first"
 
-# === URL VINTED testée (catégorie Blu-ray 4K) ===
-VINTED_API_URL = "https://www.vinted.fr/api/v2/catalog/items?catalog[]=3042&order=newest_first"
-
-# === POUR MÉMORISER LES ANNONCES ===
 annonces_envoyees = set()
 
 def envoyer_message(message):
@@ -21,7 +19,7 @@ def envoyer_message(message):
         "parse_mode": "HTML"
     }
     try:
-        response = requests.post(url, data=payload)
+        requests.post(url, data=payload)
         print("📨 Notification envoyée.")
     except Exception as e:
         print("❌ Erreur envoi Telegram:", e)
@@ -31,19 +29,31 @@ def get_annonces_vinted():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
     try:
-        print("🌐 Requête envoyée à Vinted...")
-        r = requests.get(VINTED_API_URL, headers=headers)
-        print("🔢 Code HTTP :", r.status_code)
+        print("🌐 Récupération HTML de la page Vinted...")
+        r = requests.get(URL_VINTED, headers=headers)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-        if r.status_code != 200:
-            print("❌ Erreur HTTP, contenu reçu :", r.text[:200])
-            return []
+        articles = soup.select("a.tile")  # chaque annonce
+        resultats = []
 
-        data = r.json()
-        return data.get("items", [])
+        for article in articles:
+            titre = article.select_one("h3").text.strip() if article.select_one("h3") else "Sans titre"
+            lien = "https://www.vinted.fr" + article.get("href")
+            prix = article.select_one("div[class*='price']").text.strip() if article.select_one("div[class*='price']") else "Prix inconnu"
+
+            identifiant = hashlib.md5((titre + lien).encode()).hexdigest()
+
+            resultats.append({
+                "id": identifiant,
+                "titre": titre,
+                "prix": prix,
+                "lien": lien
+            })
+
+        return resultats
 
     except Exception as e:
-        print("❌ Erreur pendant la récupération :", e)
+        print("❌ Erreur pendant le scraping :", e)
         return []
 
 def verifier_et_notifier():
@@ -54,22 +64,16 @@ def verifier_et_notifier():
 
     print(f"📦 {len(annonces)} annonces récupérées.")
 
-    for article in annonces:
-        title = article["title"]
-        url = f"https://www.vinted.fr{article['url']}"
-        price = article["price"]
-        identifiant = hashlib.md5((title + url).encode()).hexdigest()
-
-        if identifiant not in annonces_envoyees:
-            annonces_envoyees.add(identifiant)
-            message = f"🆕 <b>{title}</b>\n💶 Prix : {price} €\n🔗 {url}"
+    for annonce in annonces:
+        if annonce["id"] not in annonces_envoyees:
+            annonces_envoyees.add(annonce["id"])
+            message = f"🆕 <b>{annonce['titre']}</b>\n💶 {annonce['prix']}\n🔗 {annonce['lien']}"
             envoyer_message(message)
         else:
-            print("🔁 Annonce déjà envoyée :", title)
+            print("🔁 Annonce déjà envoyée :", annonce["titre"])
 
-# === LANCEMENT BOUCLE ===
+# === LANCEMENT ===
 while True:
-    print("🔁 Nouvelle vérification...")
+    print("🔁 Vérification en cours...")
     verifier_et_notifier()
     time.sleep(CHECK_INTERVAL)
-
