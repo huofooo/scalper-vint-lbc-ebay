@@ -1,65 +1,73 @@
 import time
-import requests
+import os
+from discord_webhook import DiscordWebhook, DiscordEmbed
+from pyVinted import Vinted
+import utils
 
 WEBHOOK_URL = "https://discordapp.com/api/webhooks/1375552352010109040/ASAptOz6NiXR6eWPLvjUl6Vsx-SgGRJyIjx3KeRuUOtZiknHvokvP73e0nWGm1hyTvIP"
-API_URL = "https://www.vinted.fr/api/v2/catalog/items?catalog[]=3042&order=newest_first"
 
-sent_ids = set()
+os.system("title Vinted Scraping $_$ By N0RZE")
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Accept": "application/json",
-    "X-Requested-With": "XMLHttpRequest",
-    "Referer": "https://www.vinted.fr/",
-    "X-Vinted-Client-Id": "web",
-    "X-Currency": "EUR",
-    "X-Locale": "fr"
-}
+banner = """
+            /$$             /$$                     /$$
+           |__/            | $$                    | $$
+ /$$    /$$ /$$ /$$$$$$$  /$$$$$$    /$$$$$$   /$$$$$$$
+|  $$  /$$/| $$| $$__  $$|_  $$_/   /$$__  $$ /$$__  $$
+ \  $$/$$/ | $$| $$  \ $$  | $$    | $$$$$$$$| $$  | $$
+  \  $$$/  | $$| $$  | $$  | $$ /$$| $$_____/| $$  | $$
+   \  $/   | $$| $$  | $$  |  $$$$/|  $$$$$$$|  $$$$$$$
+    \_/    |__/|__/  |__/   \___/   \_______/ \_______/
 
-def send_discord_message(title, url, price):
-    data = {
-        "embeds": [{
-            "title": title,
-            "url": url,
-            "description": f"💰 Prix : {price}",
-            "color": 5814783
-        }]
-    }
-    response = requests.post(WEBHOOK_URL, json=data)
-    if response.status_code == 204:
-        print("✅ Notification envoyée")
-    else:
-        print("❌ Erreur Discord :", response.text)
+                🤑 Vinted Bot v1
+                    By Norze
 
-def scrape_vinted():
-    try:
-        response = requests.get(API_URL, headers=HEADERS)
-        if response.status_code != 200:
-            print(f"❌ Erreur HTTP : {response.status_code}")
-            print("Contenu reçu :", response.text[:200])
-            return
+""".replace("$", utils.PURPLE + "$" + utils.WHITE).replace("_", utils.RED + "_" + utils.WHITE).replace("|", utils.RED + "|" + utils.WHITE).replace("/", utils.RED + "/" + utils.WHITE).replace("\\", utils.RED + "\\" + utils.WHITE)
+print(banner)
 
-        data = response.json()
-        items = data.get("items", [])
-        if not items:
-            print("ℹ️ Aucune nouvelle annonce détectée.")
-            return
+last_item_id = ""
+sent_items = []
 
-        for item in items:
-            item_id = item["id"]
-            if item_id not in sent_ids:
-                title = item["title"]
-                url = "https://www.vinted.fr" + item["url"]
-                price = item["price"] + " €"
-                send_discord_message(title, url, price)
-                sent_ids.add(item_id)
-
-    except Exception as e:
-        print("❌ Erreur :", e)
+allowed_country_code = "fr" # your country
+allowed_price = 1000000 # your max price
 
 while True:
-    print("🔄 Scraping Vinted...")
-    scrape_vinted()
-    time.sleep(60)
+    try:
+        time.sleep(3)    
+        vinted = Vinted()
+        items = vinted.items.search(f"https://www.vinted.fr/catalog?search_text=steelbook%204k&time=1748027744&order=newest_first&page=1", 10, 1)
+       
+        for item in items:
+            if item.brand_title.lower() in allowed_brands:
+                if item.id not in sent_items: 
+                    sent_items.append(item.id)  
 
+                    titler = item.title if item.title else "Not found"
+                    screen = item.photo if item.photo else "Not found"
+                    brand = item.brand_title if item.brand_title else "Not found"
+                    price = f"{item.price}€" if item.price else "Not found"
+                    url = item.url if item.url else "Not found"
+                    create = item.created_at_ts.strftime("%Y-%m-%d %H:%M:%S") if item.created_at_ts else "Not found"
 
+                    webhook = DiscordWebhook(url=https://discordapp.com/api/webhooks/1375552352010109040/ASAptOz6NiXR6eWPLvjUl6Vsx-SgGRJyIjx3KeRuUOtZiknHvokvP73e0nWGm1hyTvIP)
+                    embed = DiscordEmbed(title="", description=f"**[{titler}]({url})**", color=3447003)
+                    embed.add_embed_field(name="", value="", inline=False)
+                    embed.set_thumbnail(url="https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2016/02/simpsons.gif?resize=500,432&key=f4555826")
+                    embed.set_image(url=screen)
+                    embed.add_embed_field(name="⌛ Publication", value=create, inline=True)
+                    embed.add_embed_field(name="🔖 Marque", value=brand, inline=True)
+                    embed.add_embed_field(name="💰 Prix", value=price, inline=True)
+
+                    embed.set_footer(text="Bot Vinted by Norze")
+                    webhook.add_embed(embed)
+                    response = webhook.execute()
+
+                    if response.status_code == 200:
+                        print('[+] Embed sent successfully.')
+                    else:
+                        print('[-] Failed to send embed. Status code:', response.status_code)
+
+                else:
+                    print("[INFO] Already shown")
+
+    except Exception as e:
+        print("[INFO] Failed:", str(e))
