@@ -6,6 +6,16 @@ API_URL = "https://www.vinted.fr/api/v2/catalog/items?catalog[]=3042&order=newes
 
 sent_ids = set()
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Accept": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+    "Referer": "https://www.vinted.fr/",
+    "X-Vinted-Client-Id": "web",
+    "X-Currency": "EUR",
+    "X-Locale": "fr"
+}
+
 def send_discord_message(title, url, price):
     data = {
         "embeds": [{
@@ -23,20 +33,16 @@ def send_discord_message(title, url, price):
 
 def scrape_vinted():
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-        }
-        response = requests.get(API_URL, headers=headers)
-
+        response = requests.get(API_URL, headers=HEADERS)
         if response.status_code != 200:
-            print("❌ Erreur HTTP :", response.status_code)
+            print(f"❌ Erreur HTTP : {response.status_code}")
             print("Contenu reçu :", response.text[:200])
             return
 
         data = response.json()
         items = data.get("items", [])
         if not items:
-            print("ℹ️ Aucune nouvelle annonce pour le moment.")
+            print("ℹ️ Aucune nouvelle annonce détectée.")
             return
 
         for item in items:
@@ -55,4 +61,5 @@ while True:
     print("🔄 Scraping Vinted...")
     scrape_vinted()
     time.sleep(60)
+
 
