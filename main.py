@@ -1,9 +1,8 @@
 import time
 import requests
-import json
 
 WEBHOOK_URL = "https://discordapp.com/api/webhooks/1375552352010109040/ASAptOz6NiXR6eWPLvjUl6Vsx-SgGRJyIjx3KeRuUOtZiknHvokvP73e0nWGm1hyTvIP"
-URL_VINTED = "https://www.vinted.fr/catalog?search_text=steelbook%204k&time=1748027744&order=newest_first&page=1"
+API_URL = "https://www.vinted.fr/api/v2/catalog/items?search_text=steelbook+4k&catalog[]=3042&order=newest_first"
 
 sent_ids = set()
 
@@ -12,40 +11,37 @@ def send_discord_message(title, url, price):
         "embeds": [{
             "title": title,
             "url": url,
-            "description": f"Prix : {price}",
+            "description": f"💰 Prix : {price}",
             "color": 5814783
         }]
     }
     response = requests.post(WEBHOOK_URL, json=data)
-    print("Notification envoyée sur Discord" if response.status_code == 204 else "Erreur envoi Discord")
+    if response.status_code == 204:
+        print("✅ Notification envoyée")
+    else:
+        print("❌ Erreur Discord :", response.text)
 
 def scrape_vinted():
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-        response = requests.get(URL_VINTED, headers=headers)
-        if response.status_code != 200:
-            print("Erreur HTTP, statut :", response.status_code)
-            return
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(API_URL, headers=headers)
+        data = response.json()
 
-        html = response.text
-        items = html.split('"items":')[1].split(',"total_items')[0]
-        items = json.loads(items)
-
+        items = data["items"]
         for item in items:
-            item_id = item['id']
+            item_id = item["id"]
             if item_id not in sent_ids:
-                title = item['title']
-                url = "https://www.vinted.fr" + item['url']
-                price = item['price']["amount"] + " €"
+                title = item["title"]
+                url = "https://www.vinted.fr" + item["url"]
+                price = item["price"] + " €"
                 send_discord_message(title, url, price)
                 sent_ids.add(item_id)
 
     except Exception as e:
-        print("Erreur :", e)
+        print("❌ Erreur :", e)
 
 while True:
-    print("Scraping Vinted...")
+    print("🔄 Scraping Vinted...")
     scrape_vinted()
     time.sleep(60)
+
