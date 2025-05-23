@@ -48,7 +48,7 @@ while True:
                     url = item.url if item.url else "Not found"
                     create = item.created_at_ts.strftime("%Y-%m-%d %H:%M:%S") if item.created_at_ts else "Not found"
 
-                    webhook = DiscordWebhook(url=https://discordapp.com/api/webhooks/1375552352010109040/ASAptOz6NiXR6eWPLvjUl6Vsx-SgGRJyIjx3KeRuUOtZiknHvokvP73e0nWGm1hyTvIP)
+                    webhook = DiscordWebhook(url=WEBHOOK_URL)
                     embed = DiscordEmbed(title="", description=f"**[{titler}]({url})**", color=3447003)
                     embed.add_embed_field(name="", value="", inline=False)
                     embed.set_thumbnail(url="https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2016/02/simpsons.gif?resize=500,432&key=f4555826")
