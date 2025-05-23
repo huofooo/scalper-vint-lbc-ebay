@@ -2,7 +2,7 @@ import time
 import requests
 
 WEBHOOK_URL = "https://discordapp.com/api/webhooks/1375552352010109040/ASAptOz6NiXR6eWPLvjUl6Vsx-SgGRJyIjx3KeRuUOtZiknHvokvP73e0nWGm1hyTvIP"
-API_URL = "https://www.vinted.fr/api/v2/catalog/items?search_text=steelbook+4k&catalog[]=3042&order=newest_first"
+API_URL = "https://www.vinted.fr/api/v2/catalog/items?catalog[]=3042&order=newest_first"
 
 sent_ids = set()
 
@@ -23,11 +23,22 @@ def send_discord_message(title, url, price):
 
 def scrape_vinted():
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
         response = requests.get(API_URL, headers=headers)
-        data = response.json()
 
-        items = data["items"]
+        if response.status_code != 200:
+            print("❌ Erreur HTTP :", response.status_code)
+            print("Contenu reçu :", response.text[:200])
+            return
+
+        data = response.json()
+        items = data.get("items", [])
+        if not items:
+            print("ℹ️ Aucune nouvelle annonce pour le moment.")
+            return
+
         for item in items:
             item_id = item["id"]
             if item_id not in sent_ids:
